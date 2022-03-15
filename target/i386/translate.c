@@ -31,6 +31,7 @@
 #include "trace-tcg.h"
 #include "exec/log.h"
 
+#include "afl.h"
 
 #define PREFIX_REPZ   0x01
 #define PREFIX_REPNZ  0x02
@@ -7148,6 +7149,9 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             gen_eob(s);
         }
         break;
+    case 0x124: /* fuzzCall */
+        gen_helper_fuzzCall(cpu_regs[R_EAX], cpu_env, cpu_regs[R_EDI], cpu_regs[R_ESI], cpu_regs[R_EDX]);
+        break;
 #ifdef TARGET_X86_64
     case 0x105: /* syscall */
         /* XXX: is it usable in real mode ? */
@@ -8569,4 +8573,103 @@ void restore_state_to_opc(CPUX86State *env, TranslationBlock *tb,
     if (cc_op != CC_OP_DYNAMIC) {
         env->cc_op = cc_op;
     }
+}
+
+static target_ulong startForkServer(CPUArchState *env, target_ulong enableTicks)
+{
+    // TODO: If we are in a fork server, return.
+    if(false){
+        // TODO: Do nothing now.
+    }
+    
+    return -1;
+}
+
+/* copy work into ptr[0..sz].  Assumes memory range is locked. */
+static target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz)
+{
+    // we can relocate from ptr to some useful function
+    // TODO:
+    FILE *fp;
+    unsigned char ch;
+    char fuzzTestFile[] = "/fuzzer/gen_input/fuzz_test";
+    printf("[+] Will open file: %s", fuzzTestFile);
+    fp = fopen(fuzzTestFile, "rb");
+    // fp = open(aflFile, "rb");
+    if(!fp)
+    {
+        perror("getWork open·File error!");
+        // exit(-1);
+        return -1;
+    }
+    target_ulong ret_sz = 0;
+    while(ret_sz < sz)
+    {
+        if(fread(&ch, 1, 1, fp) == 0)
+        {
+            break;
+        }
+        // printf("[+] ch: %c\n", ch);
+        cpu_stb_data(env, ptr, ch);
+        ret_sz++;
+        ptr++;
+    }
+    fclose(fp);
+    return ret_sz;
+}
+
+static target_ulong startWork(CPUArchState *env, target_ulong ptr)
+{
+    target_ulong start, end;
+    target_ulong catch_pc;
+    printf("pid %d: ptr %x\n", getpid(), ptr);
+    fflush(stdout);
+    start = cpu_ldq_data(env, ptr);
+    end = cpu_ldq_data(env, ptr + sizeof(start) * 2);
+    catch_pc = cpu_ldq_data(env, ptr + sizeof(start) * 4);
+    printf("pid %d: startWork %x - %x\n", getpid(), start, end);
+    printf("pc: %x\n", catch_pc);
+    afl_start_code = catch_pc;
+    fflush(stdout);
+    if(start >= end){
+        perror(" False range: start_addr < end_addr!\n");
+        exit(0);
+    }
+    // 每次只会判断一次？
+    afl_need_start = 1;
+    return 1;
+}
+
+static target_ulong doneWork(target_ulong val)
+{
+    // TODO: 
+    start_trace = false;
+    exit(0);
+    return -1;
+}
+
+target_ulong helper_fuzzCall(CPUArchState *env, target_ulong code, target_ulong a0, target_ulong a1) {
+    switch (code)
+    {
+    case 1:
+        // printf("[+] a0: %#x\n", a0);
+        return startForkServer(env, a0);
+    
+    case 2:
+        // printf("[+] a0: %#x, a1: %#x\n", a0, a1);
+        return getWork(env, a0, a1);
+    
+    case 3:
+        // printf("[+] a0: %#x\n", a0);
+        return startWork(env, a0);
+
+    case 4:
+        // printf("[+] a0: %#x\n", a0);
+        return doneWork(a0);
+    
+    default:
+        printf("[!] Not implement!\n");
+        break;
+    }
+    return -1;
 }
