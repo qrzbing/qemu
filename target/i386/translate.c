@@ -7148,6 +7148,9 @@ static target_ulong disas_insn(CPUX86State *env, DisasContext *s,
             gen_eob(s);
         }
         break;
+    case 0x124: /* fuzzCall */
+        gen_helper_fuzzCall(cpu_regs[R_EAX], cpu_env, cpu_regs[R_EDI], cpu_regs[R_ESI], cpu_regs[R_EDX]);
+        break;
 #ifdef TARGET_X86_64
     case 0x105: /* syscall */
         /* XXX: is it usable in real mode ? */
@@ -8569,4 +8572,29 @@ void restore_state_to_opc(CPUX86State *env, TranslationBlock *tb,
     if (cc_op != CC_OP_DYNAMIC) {
         env->cc_op = cc_op;
     }
+}
+
+target_ulong helper_fuzzCall(CPUArchState *env, target_ulong code, target_ulong a0, target_ulong a1) {
+    printf("[+] code: %d\n, Get helper call\n", code);
+    switch (code)
+    {
+    case 1:
+        // return startForkServer(env, a0);
+        break;
+    
+    case 2:
+        // return getWork(env, a0, a1);
+        break;
+    
+    case 3:
+        // return startWork(env, a0);
+        break;
+
+    case 4:
+        // return doneWork(a0);
+    
+    default:
+        break;
+    }
+    return -1;
 }
