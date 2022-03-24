@@ -34,7 +34,7 @@
 */
 
 #include <sys/shm.h>
-#include "../../config.h"
+#include "../../../config.h"
 #include "exec/user/abitypes.h"
 #include "exec/exec-all.h"
 
@@ -77,6 +77,17 @@ static unsigned char *afl_area_ptr;
 abi_ulong afl_entry_point, /* ELF entry point (_start) */
           afl_start_code,  /* .text start pointer      */
           afl_end_code;    /* .text end pointer        */
+
+int afl_need_start = 0, afl_need_stop = 0;
+
+int aflStart = 0;               /* we've started fuzzing */
+int aflEnableTicks = 0;         /* re-enable ticks for each test */
+int aflGotLog = 0;              /* we've seen dmesg logging */
+
+/* from command line options */
+const char *aflFile = "/tmp/work";
+unsigned long aflPanicAddr = (unsigned long)-1;
+unsigned long aflDmesgAddr = (unsigned long)-1;
 
 /* Set in the child process in forkserver mode: */
 

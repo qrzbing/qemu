@@ -31,6 +31,7 @@
 #include "trace-tcg.h"
 #include "exec/log.h"
 
+#include "afl.h"
 
 #define PREFIX_REPZ   0x01
 #define PREFIX_REPNZ  0x02
@@ -8574,26 +8575,97 @@ void restore_state_to_opc(CPUX86State *env, TranslationBlock *tb,
     }
 }
 
+static target_ulong startForkServer(CPUArchState *env, target_ulong enableTicks)
+{
+    // TODO: If we are in a fork server, return.
+    if(false){
+        // TODO: Do nothing now.
+    }
+    
+    return -1;
+}
+
+/* copy work into ptr[0..sz].  Assumes memory range is locked. */
+static target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz)
+{
+    // TODO:
+    FILE *fp;
+    unsigned char ch;
+    char fuzzTestFile[] = "/tmp/fuzz_test";
+    printf("[+] Will open file: %s", fuzzTestFile);
+    fp = fopen(fuzzTestFile, "rb");
+    // fp = open(aflFile, "rb");
+    if(!fp)
+    {
+        perror("getWork open·File error!");
+        return -1;
+    }
+    target_ulong ret_sz = 0;
+    while(ret_sz < sz)
+    {
+        if(fread(&ch, 1, 1, fp) == 0)
+        {
+            break;
+        }
+        printf("[+] ch: %c\n", ch);
+        cpu_stb_data(env, ptr, ch);
+        ret_sz++;
+        ptr++;
+    }
+    fclose(fp);
+    return ret_sz;
+}
+
+static target_ulong startWork(CPUArchState *env, target_ulong ptr)
+{
+    target_ulong start, end;
+    target_ulong catch_pc;
+    printf("pid %d: ptr %lx\n", getpid(), ptr);
+    fflush(stdout);
+    start = cpu_ldq_data(env, ptr);
+    end = cpu_ldq_data(env, ptr + sizeof(start) * 2);
+    catch_pc = cpu_ldq_data(env, ptr + sizeof(start) * 4);
+    printf("pid %d: startWork %lx - %lx\n", getpid(), start, end);
+    printf("pc: %x\n", catch_pc);
+    afl_start_code = catch_pc;
+    fflush(stdout);
+    if(start >= end){
+        perror(" False range: start_addr < end_addr!\n");
+        exit(0);
+    }
+    // 每次只会判断一次？
+    afl_need_start = 1;
+    return 1;
+}
+
+static target_ulong doneWork(target_ulong val)
+{
+    // TODO: 
+    return -1;
+}
+
 target_ulong helper_fuzzCall(CPUArchState *env, target_ulong code, target_ulong a0, target_ulong a1) {
     printf("[+] code: %d\n, Get helper call\n", code);
     switch (code)
     {
     case 1:
-        // return startForkServer(env, a0);
-        break;
+        printf("[+] a0: %#x\n", a0);
+        return startForkServer(env, a0);
     
     case 2:
-        // return getWork(env, a0, a1);
-        break;
+        printf("[+] a0: %#x, a1: %#x\n", a0, a1);
+        return getWork(env, a0, a1);
     
     case 3:
-        // return startWork(env, a0);
-        break;
+        printf("[+] a0: %#x\n", a0);
+        return startWork(env, a0);
 
     case 4:
-        // return doneWork(a0);
+        printf("[+] a0: %#x\n", a0);
+        return doneWork(a0);
     
     default:
+        printf("[!] Not implement!\n");
         break;
     }
     return -1;

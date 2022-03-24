@@ -146,6 +146,9 @@ static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
     int tb_exit;
     uint8_t *tb_ptr = itb->tc_ptr;
 
+    if(itb->pc == afl_start_code){
+        printf("[+] hit start code!\n");
+    }
     AFL_QEMU_CPU_SNIPPET2;
 
     qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
