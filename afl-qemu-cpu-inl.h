@@ -83,9 +83,10 @@ int afl_need_start = 0, afl_need_stop = 0;
 int aflStart = 0;               /* we've started fuzzing */
 int aflEnableTicks = 0;         /* re-enable ticks for each test */
 int aflGotLog = 0;              /* we've seen dmesg logging */
+bool start_trace = false;       /* start strace when we hit the bb */
 
 /* from command line options */
-const char *aflFile = "/tmp/work";
+const char *aflFile = "/fuzz/work";
 unsigned long aflPanicAddr = (unsigned long)-1;
 unsigned long aflDmesgAddr = (unsigned long)-1;
 
@@ -128,11 +129,13 @@ struct afl_tsl {
 
 static void afl_setup(void) {
 
+  // id_str 是提取放入环境变量的共享内存 id
   char *id_str = getenv(SHM_ENV_VAR),
        *inst_r = getenv("AFL_INST_RATIO");
 
   int shm_id;
 
+  // 这一部分决定了插桩的密度？意思是说有一部分不会记录的意思吗
   if (inst_r) {
 
     unsigned int r;
@@ -148,6 +151,7 @@ static void afl_setup(void) {
 
   if (id_str) {
 
+    // 获取共享内存地址
     shm_id = atoi(id_str);
     afl_area_ptr = shmat(shm_id, NULL, 0);
 
@@ -161,6 +165,7 @@ static void afl_setup(void) {
 
   }
 
+  // 内核中会有动态链接库的问题吗
   if (getenv("AFL_INST_LIBS")) {
 
     afl_start_code = 0;
@@ -201,8 +206,11 @@ static void afl_forkserver(CPUState *cpu) {
 
     /* Whoops, parent dead? */
 
-    if (read(FORKSRV_FD, tmp, 4) != 4) exit(2);
-
+    if (read(FORKSRV_FD, tmp, 4) != 4)
+    {
+      puts("[!] Parent dead!");
+      exit(2);
+    }
     /* Establish a channel with child to grab translation commands. We'll
        read from t_fd[0], child will write to TSL_FD. */
 
@@ -252,9 +260,13 @@ static inline void afl_maybe_log(abi_ulong cur_loc) {
 
   /* Optimize for cur_loc > afl_end_code, which is the most likely case on
      Linux systems. */
-
-  if (cur_loc > afl_end_code || cur_loc < afl_start_code || !afl_area_ptr)
-    return;
+  /*
+   * 我这里不需要判断起始地址和结束地址，因为执行完相应序列之后就会主动关闭 kernel
+   * 不过还是需要判断一下 afl_area_ptr 是否为空，为空则退出，避免意外
+  */
+  // if (cur_loc > afl_end_code || cur_loc < afl_start_code || !afl_area_ptr)
+  //   return;
+  if (!afl_area_ptr) return;
 
   /* Looks like QEMU always maps to fixed locations, so ASAN is not a
      concern. Phew. But instruction addresses may be aligned. Let's mangle
@@ -265,9 +277,16 @@ static inline void afl_maybe_log(abi_ulong cur_loc) {
 
   /* Implement probabilistic instrumentation by looking at scrambled block
      address. This keeps the instrumented locations stable across runs. */
-
+  /*
+   * 当前位置有 AFL_INST_RATIO 的概率不会被插桩，避免分析复杂度过高出现性能问题
+   * 而我们会执行多次，理论上都会执行到的。
+  */
   if (cur_loc >= afl_inst_rms) return;
 
+  /*
+   * 这里正式给 afl_area_ptr 也就是 bitmap 赋值
+   * TODO: 我应该没理解错吧，验证一下
+  */
   afl_area_ptr[cur_loc ^ prev_loc]++;
   prev_loc = cur_loc >> 1;
 
@@ -309,15 +328,20 @@ static void afl_wait_tsl(CPUState *cpu, int fd) {
     if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
       break;
 
-    tb = tb_htable_lookup(cpu, t.pc, t.cs_base, t.flags);
+    /*
+     * 这一块可能不是必要的，关掉这个功能也不会导致 crash，只会降低速度
+     * 先将其注释掉
+    */
 
-    if(!tb) {
-      mmap_lock();
-      tb_lock();
-      tb_gen_code(cpu, t.pc, t.cs_base, t.flags, 0);
-      mmap_unlock();
-      tb_unlock();
-    }
+    // tb = tb_htable_lookup(cpu, t.pc, t.cs_base, t.flags);
+
+    // if(!tb) {
+    //   mmap_lock();
+    //   tb_lock();
+    //   tb_gen_code(cpu, t.pc, t.cs_base, t.flags, 0);
+    //   mmap_unlock();
+    //   tb_unlock();
+    // }
 
   }
 

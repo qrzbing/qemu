@@ -8588,10 +8588,11 @@ static target_ulong startForkServer(CPUArchState *env, target_ulong enableTicks)
 /* copy work into ptr[0..sz].  Assumes memory range is locked. */
 static target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz)
 {
+    // we can relocate from ptr to some useful function
     // TODO:
     FILE *fp;
     unsigned char ch;
-    char fuzzTestFile[] = "/tmp/fuzz_test";
+    char fuzzTestFile[] = "/fuzz/fuzz_test";
     printf("[+] Will open file: %s", fuzzTestFile);
     fp = fopen(fuzzTestFile, "rb");
     // fp = open(aflFile, "rb");
@@ -8607,7 +8608,7 @@ static target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz
         {
             break;
         }
-        printf("[+] ch: %c\n", ch);
+        // printf("[+] ch: %c\n", ch);
         cpu_stb_data(env, ptr, ch);
         ret_sz++;
         ptr++;
@@ -8620,12 +8621,12 @@ static target_ulong startWork(CPUArchState *env, target_ulong ptr)
 {
     target_ulong start, end;
     target_ulong catch_pc;
-    printf("pid %d: ptr %lx\n", getpid(), ptr);
+    printf("pid %d: ptr %x\n", getpid(), ptr);
     fflush(stdout);
     start = cpu_ldq_data(env, ptr);
     end = cpu_ldq_data(env, ptr + sizeof(start) * 2);
     catch_pc = cpu_ldq_data(env, ptr + sizeof(start) * 4);
-    printf("pid %d: startWork %lx - %lx\n", getpid(), start, end);
+    printf("pid %d: startWork %x - %x\n", getpid(), start, end);
     printf("pc: %x\n", catch_pc);
     afl_start_code = catch_pc;
     fflush(stdout);

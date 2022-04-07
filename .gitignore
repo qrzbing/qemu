@@ -137,3 +137,4 @@ trace-ust-all.c
 
 build
 .vscode
+test-driver
