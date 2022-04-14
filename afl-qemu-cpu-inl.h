@@ -86,7 +86,7 @@ int aflGotLog = 0;              /* we've seen dmesg logging */
 bool start_trace = false;       /* start strace when we hit the bb */
 
 /* from command line options */
-const char *aflFile = "/fuzz/work";
+const char *aflFile = "/fuzzer/gen_input";
 unsigned long aflPanicAddr = (unsigned long)-1;
 unsigned long aflDmesgAddr = (unsigned long)-1;
 
@@ -186,27 +186,29 @@ static void afl_setup(void) {
 
 static void afl_forkserver(CPUState *cpu) {
 
-  static unsigned char tmp[4];
+  static unsigned char tmp[4] = "1234";
 
   if (!afl_area_ptr) return;
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */
-
+  // 写给 Fuzzer 告诉自己运行了
+  printf("[Qemu] write %x to AFL\n", *(unsigned int*)tmp);
   if (write(FORKSRV_FD + 1, tmp, 4) != 4) return;
 
   afl_forksrv_pid = getpid();
-
-  /* All right, let's await orders... */
-
-  while (1) {
-
+  printf("[+] afl_forksrv_pid: %d\n", afl_forksrv_pid);
+  
+  // TODO: OK, Let's do it once
+  while(1){
     pid_t child_pid;
     int status, t_fd[2];
 
     /* Whoops, parent dead? */
-
-    if (read(FORKSRV_FD, tmp, 4) != 4)
+    // 判断Fuzzer进程是否存活
+    // sleep(1);
+    int failed_len = read(FORKSRV_FD, tmp, 4);
+    if (failed_len != 4)
     {
       puts("[!] Parent dead!");
       exit(2);
@@ -214,8 +216,8 @@ static void afl_forkserver(CPUState *cpu) {
     /* Establish a channel with child to grab translation commands. We'll
        read from t_fd[0], child will write to TSL_FD. */
 
-    if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0) exit(3);
-    close(t_fd[1]);
+    // if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0) exit(3);
+    // close(t_fd[1]);
 
     child_pid = fork();
     if (child_pid < 0) exit(4);
@@ -227,26 +229,31 @@ static void afl_forkserver(CPUState *cpu) {
       afl_fork_child = 1;
       close(FORKSRV_FD);
       close(FORKSRV_FD + 1);
-      close(t_fd[0]);
+      // close(t_fd[0]);
       return;
 
     }
 
     /* Parent. */
-
-    close(TSL_FD);
+    printf("[Qemu] Parent will wait until child exit\n");
+    // close(TSL_FD);
 
     if (write(FORKSRV_FD + 1, &child_pid, 4) != 4) exit(5);
 
     /* Collect translation requests until child dies and closes the pipe. */
 
-    afl_wait_tsl(cpu, t_fd[0]);
+    // afl_wait_tsl(cpu, t_fd[0]);
 
     /* Get and relay exit status to parent. */
 
     if (waitpid(child_pid, &status, 0) < 0) exit(6);
     if (write(FORKSRV_FD + 1, &status, 4) != 4) exit(7);
 
+    // // TODO: Now we do't need Qemu run, exit
+    // ! Bug: exit maybe cause error
+    // ! exit(0);
+    // TODO: 每5s运行一次
+    sleep(5);
   }
 
 }

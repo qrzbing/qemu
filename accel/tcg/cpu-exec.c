@@ -137,6 +137,8 @@ static void init_delay_params(SyncClocks *sc, const CPUState *cpu)
 }
 #endif /* CONFIG USER ONLY */
 
+static int hit_once = 0;
+
 /* Execute a TB, and fix up the CPU state afterwards if necessary */
 static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
 {
@@ -147,7 +149,7 @@ static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
     uint8_t *tb_ptr = itb->tc_ptr;
     
 
-    if(itb->pc == afl_start_code){
+    if(unlikely((itb->pc == afl_start_code) && !hit_once)){
         printf("[+] hit start code!\n");
         // TODO: At first, fork a copy of qemu,
         // then, set start_trace = true
@@ -155,11 +157,12 @@ static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
         afl_setup();
         afl_forkserver(cpu);
         start_trace = true;
+        hit_once+=1;
     }
     if(start_trace)
     {
         afl_maybe_log(itb->pc);
-        printf("[+] log addr: %#x\n", itb->pc);
+        // printf("[+] log addr: %#x\n", itb->pc);
     }
 
     qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
