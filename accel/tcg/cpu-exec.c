@@ -157,15 +157,20 @@ static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
         afl_setup();
         afl_forkserver(cpu);
         start_trace = true;
-<<<<<<< HEAD
-=======
         hit_once+=1;
->>>>>>> 4a3ff2588a5dce84c9a578cee6a6d28b3dadf02c
     }
     if(start_trace)
     {
         afl_maybe_log(itb->pc);
+<<<<<<< HEAD
         // printf("[+] log addr: %#x\n", itb->pc);
+=======
+<<<<<<< HEAD
+        printf("[+] log addr: %#x\n", itb->pc);
+=======
+        // printf("[+] log addr: %#x\n", itb->pc);
+>>>>>>> 4a3ff2588a5dce84c9a578cee6a6d28b3dadf02c
+>>>>>>> 24e58c6406e3f2edecee51a70e4d62b668e178cc
     }
 
     qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
