@@ -41,6 +41,8 @@
 #include "sysemu/cpu-timers.h"
 #include "sysemu/replay.h"
 
+#include "afl-qemu-cpu-inl.h"
+
 /* -icount align implementation. */
 
 typedef struct SyncClocks {
@@ -143,6 +145,8 @@ static void init_delay_params(SyncClocks *sc, const CPUState *cpu)
 }
 #endif /* CONFIG USER ONLY */
 
+static int hit_once = 0;
+
 /* Execute a TB, and fix up the CPU state afterwards if necessary */
 static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
 {
@@ -151,6 +155,22 @@ static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
     TranslationBlock *last_tb;
     int tb_exit;
     uint8_t *tb_ptr = itb->tc.ptr;
+
+    if(unlikely((itb->pc == afl_start_code) && !hit_once)){
+        printf("[+] hit start code!\n");
+        // TODO: At first, fork a copy of qemu,
+        // then, set start_trace = true
+        // AFL_QEMU_CPU_SNIPPET2;
+        afl_setup();
+        afl_forkserver(cpu);
+        start_trace = true;
+        hit_once+=1;
+    }
+    if(start_trace)
+    {
+        afl_maybe_log(itb->pc);
+        // printf("[+] log addr: %#x\n", itb->pc);
+    }
 
     qemu_log_mask_and_addr(CPU_LOG_EXEC, itb->pc,
                            "Trace %d: %p ["
@@ -425,10 +445,16 @@ static inline TranslationBlock *tb_find(CPUState *cpu,
         last_tb = NULL;
     }
 #endif
+/*
+ * chaining complicates AFL's instrumentation so we disable it
+ * by Triforce AFL
+ */
+#ifdef NOPE_NOT_NEVER
     /* See if we can patch the calling TB. */
     if (last_tb) {
         tb_add_jump(last_tb, tb_exit, tb);
     }
+#endif
     return tb;
 }
 
