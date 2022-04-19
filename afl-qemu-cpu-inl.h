@@ -200,7 +200,11 @@ static void afl_forkserver(CPUState *cpu) {
   printf("[+] afl_forksrv_pid: %d\n", afl_forksrv_pid);
   
   // TODO: OK, Let's do it once
+<<<<<<< HEAD
   while (1) {
+=======
+  while(1){
+>>>>>>> 4a3ff2588a5dce84c9a578cee6a6d28b3dadf02c
     pid_t child_pid;
     int status, t_fd[2];
 

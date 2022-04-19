@@ -8592,13 +8592,18 @@ static target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz
     // TODO:
     FILE *fp;
     unsigned char ch;
+<<<<<<< HEAD
     char fuzzTestFile[] = "/fuzz/fuzz_test";
+=======
+    char fuzzTestFile[] = "/fuzzer/gen_input/fuzz_test";
+>>>>>>> 4a3ff2588a5dce84c9a578cee6a6d28b3dadf02c
     printf("[+] Will open file: %s", fuzzTestFile);
     fp = fopen(fuzzTestFile, "rb");
     // fp = open(aflFile, "rb");
     if(!fp)
     {
         perror("getWork open·File error!");
+        // exit(-1);
         return -1;
     }
     target_ulong ret_sz = 0;
@@ -8642,27 +8647,28 @@ static target_ulong startWork(CPUArchState *env, target_ulong ptr)
 static target_ulong doneWork(target_ulong val)
 {
     // TODO: 
+    start_trace = false;
+    exit(0);
     return -1;
 }
 
 target_ulong helper_fuzzCall(CPUArchState *env, target_ulong code, target_ulong a0, target_ulong a1) {
-    printf("[+] code: %d\n, Get helper call\n", code);
     switch (code)
     {
     case 1:
-        printf("[+] a0: %#x\n", a0);
+        // printf("[+] a0: %#x\n", a0);
         return startForkServer(env, a0);
     
     case 2:
-        printf("[+] a0: %#x, a1: %#x\n", a0, a1);
+        // printf("[+] a0: %#x, a1: %#x\n", a0, a1);
         return getWork(env, a0, a1);
     
     case 3:
-        printf("[+] a0: %#x\n", a0);
+        // printf("[+] a0: %#x\n", a0);
         return startWork(env, a0);
 
     case 4:
-        printf("[+] a0: %#x\n", a0);
+        // printf("[+] a0: %#x\n", a0);
         return doneWork(a0);
     
     default:
